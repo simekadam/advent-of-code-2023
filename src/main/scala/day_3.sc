@@ -16,6 +16,9 @@ case class Gear(front: Int, rear: Int)
 
 def parseEngine = Engine(input.split("\n").map { line => line.toCharArray })
 
+val engine = parseEngine
+val schema = engine.schema
+
 def findNumberIndices(input: String, lineIndex: Int): Seq[Part] = {
   val pattern = Pattern.compile("\\d+")
   val matcher = pattern.matcher(input)
@@ -32,12 +35,23 @@ def findNumberIndices(input: String, lineIndex: Int): Seq[Part] = {
   parts.toSeq
 }
 
-def getCandidates(part: Part): PartCandidate = {
+def assertCoordinates(coordinates: Coordinates, engine: Engine): Boolean = {
+  if (coordinates.y < 0 || coordinates.y >= engine.schema.length) false
+  else if (coordinates.x < 0 || coordinates.x >= engine.schema.head.length) false
+  else true
+}
+
+def checkCoordinate(coordinates: Coordinates, engine: Engine, check: (Char) => Boolean): Boolean = {
+  if (!assertCoordinates(coordinates, engine)) return false
+
+  check(engine.schema(coordinates.y)(coordinates.x))
+}
+
+def getCandidates(part: Part, part2: Boolean): PartCandidate = {
   val candidateIndices = ArrayBuffer[Coordinates]()
 
   val indices = (part.start.x, part.end.x)
   val lineIndex = part.start.y
-
 
   candidateIndices.addOne(Coordinates(indices._1 - 1, lineIndex))
   candidateIndices.addOne(Coordinates(indices._2, lineIndex))
@@ -47,101 +61,60 @@ def getCandidates(part: Part): PartCandidate = {
     candidateIndices.addOne(Coordinates(index, lineIndex + 1))
   }
 
-  PartCandidate(part, candidateIndices.toSeq)
-}
-
-def checkCoordinate(coordinates: Coordinates, engine: Engine): Boolean = {
-  if (coordinates.y < 0 || coordinates.y >= engine.schema.length) {
-    return false
+  val filtered = candidateIndices.toSeq.filter { x =>
+    if (part2) checkCoordinate(x, engine, {
+      _ == '*'
+    })
+    else checkCoordinate(x, engine, { ch => !ch.isDigit && ch != '.' })
   }
-  if (coordinates.x < 0 || coordinates.x >= engine.schema.head.length) {
-    return false
-  }
-  val char = engine.schema(coordinates.y)(coordinates.x)
-  !char.isDigit && char != '.'
+
+  PartCandidate(part, filtered)
 }
-
-def checkCoordinatePart2(coordinates: Coordinates, engine: Engine): Boolean = {
-  if (coordinates.y < 0 || coordinates.y >= engine.schema.length) {
-    return false
-  }
-  if (coordinates.x < 0 || coordinates.x >= engine.schema.head.length) {
-    return false
-  }
-  val char = engine.schema(coordinates.y)(coordinates.x)
-  char == '*'
-}
-
-def filterCandidate(candidate: PartCandidate, engine: Engine): Boolean = {
-  candidate.candidateCoordinates.exists(candidate => checkCoordinate(candidate, engine))
-}
-
-def filterCandidatePart2(candidate: PartCandidate, engine: Engine): Boolean = {
-  candidate.candidateCoordinates.exists(candidate => checkCoordinatePart2(candidate, engine))
-}
-
-
-val engine = parseEngine
-val schema = engine.schema
 
 def part1() = {
   val result = schema.zipWithIndex.map { schemaLine =>
-    val lineString = schemaLine._1.mkString
-    val parts = findNumberIndices(lineString, schemaLine._2)
-    parts.map { part =>
-      getCandidates(part)
-    }.filter { candidate =>
-      filterCandidate(candidate, engine)
-    }.map { validPart =>
-      validPart.part.value
-    }.sum
+    findNumberIndices(schemaLine._1.mkString, schemaLine._2)
+      .map(getCandidates(_, part2 = false))
+      .filter(_.candidateCoordinates.nonEmpty)
+      .map(_.part.value)
+      .sum
   }.sum
 
   println("Part 1: " + result)
+  result
 }
 
 def part2() = {
-  val result = schema.zipWithIndex.flatMap { schemaLine =>
-    val lineString = schemaLine._1.mkString
-    val parts = findNumberIndices(lineString, schemaLine._2)
-    val validCandidates = parts.map { part =>
-      val candidates = getCandidates(part)
-      candidates
-    }.filter { candidate =>
-      val filteredCandidates = filterCandidatePart2(candidate, engine)
-      filteredCandidates
-    }.map { validPart =>
-      validPart
-    }
-
-    validCandidates
-  }
-
   val gears = ArrayBuffer[Gear]()
-
-  result.foreach {
+  val candidates = schema.zipWithIndex.flatMap { lineWithIndex =>
+    findNumberIndices(lineWithIndex._1.mkString, lineWithIndex._2)
+      .map(getCandidates(_, part2 = true))
+      .filter(_.candidateCoordinates.nonEmpty)
+  }
+  // Pair candidates
+  candidates.foreach {
     validCandidate =>
-      val validCandidateCoordinates = validCandidate.candidateCoordinates.filter(x => checkCoordinatePart2(x, engine))
-      val otherCandidates = result.filter(otherCandidate => !otherCandidate.equals(validCandidate))
+      val validCandidateCoordinates = validCandidate.candidateCoordinates
+      candidates.filter(otherCandidate => !otherCandidate.equals(validCandidate))
         .filter { otherCandidate: PartCandidate =>
-          otherCandidate.candidateCoordinates.filter { x => checkCoordinatePart2(x, engine) }
+          otherCandidate.candidateCoordinates
             .exists { otherCoordinate: Coordinates =>
               validCandidateCoordinates.exists { coordinate =>
                 coordinate.x == otherCoordinate.x && coordinate.y == otherCoordinate.y
               }
             }
+        }.foreach { counterPart =>
+          gears.addOne(Gear(validCandidate.part.value, counterPart.part.value))
         }
-
-      otherCandidates.foreach { counterPart =>
-        gears.addOne(Gear(validCandidate.part.value, counterPart.part.value))
-      }
   }
   val finalResult = gears.map { gear =>
     gear.front * gear.rear
   }.sum / 2
 
   println("Part 2: " + finalResult)
+  finalResult
 }
 
-part1()
-part2()
+if (part1() == 546563 && part2() == 91031374) {
+  println("GOOD")
+}
