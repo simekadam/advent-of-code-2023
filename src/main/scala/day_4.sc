@@ -32,11 +32,11 @@ def parseGame = Game(input.split("\n").map(parseCard))
 
 def part1() = {
   parseGame.cards.map { card =>
-    val exp = card.numbers.count(card.winningNumbers.contains)
-    if (exp == 0) {
+    val exponent = card.numbers.count(card.winningNumbers.contains)
+    if (exponent == 0) {
       0
     } else {
-      Math.pow(2, exp) / 2
+      Math.pow(2, exponent) / 2
     }
   }.sum
 }
@@ -47,17 +47,16 @@ def capIndex(index: Int, max: Int): Int = {
 
 def part2() = {
   val cards = parseGame.cards
-  val counts = cards.map(_ => 1).toArray
+  val counts = Array.fill(cards.length) {1}
 
   for (cardIndex <- 0 until (cards.length - 1)) {
     val card = cards(cardIndex)
     val winningNumbersCount = card.numbers.count(card.winningNumbers.contains)
+    val startIndex = capIndex(cardIndex + 1, cards.length)
+    val endIndex = capIndex(cardIndex + winningNumbersCount + 1, cards.length)
 
-    if (winningNumbersCount > 0) {
-      for (otherCardIndex <- capIndex(cardIndex + 1, cards.length) until capIndex(cardIndex + winningNumbersCount + 1, cards.length)) {
-        val variable = counts(cardIndex)
-        counts(otherCardIndex) += variable
-      }
+    (startIndex until endIndex).foreach {
+      counts(_) += counts(cardIndex)
     }
   }
   counts.sum
